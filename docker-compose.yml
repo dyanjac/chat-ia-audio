@@ -6,11 +6,53 @@ services:
     container_name: techshop-agent
     ports:
       - "7860:7860"
+    env_file:
+      - .env
     environment:
-      OLLAMA_HOST: "http://172.16.0.13:11434"
-      OLLAMA_MODEL: "qwen3:4b"
-      WHISPER_MODEL: "base"
-      TTS_MODEL: "tts_models/es/css10/vits"
-      GRADIO_HOST: "0.0.0.0"
-      GRADIO_PORT: "7860"
+      DB_HOST: mysql
+    depends_on:
+      mysql:
+        condition: service_healthy
     restart: unless-stopped
+
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: techshop-mcp-server
+    command: ["python", "-m", "mcp_server.server"]
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env
+    environment:
+      DB_HOST: mysql
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.4
+    container_name: techshop-mysql
+    env_file:
+      - .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "${MYSQL_HOST_PORT:-3307}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  mysql_data:

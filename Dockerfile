@@ -19,6 +19,7 @@ RUN python -m pip install --upgrade pip && \
     python -m pip install -r requirements.txt
 
 COPY app.py .
+COPY mcp_server ./mcp_server
 
 EXPOSE 7860
 
