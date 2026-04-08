@@ -200,4 +200,18 @@ def build_interface() -> gr.Blocks:
             label="Respuesta en audio",
             type="filepath",
             autoplay=True,
-          
+            interactive=False,
+        )
+
+        submit_button.click(
+            fn=process_request,
+            inputs=[text_input, audio_input, previous_audio_state],
+            outputs=[output_text, output_audio, previous_audio_state],
+        )
+
+    return demo
+
+
+if __name__ == "__main__":
+    app = build_interface()
+    app.launch(server_name=GRADIO_HOST, server_port=GRADIO_PORT)

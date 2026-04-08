@@ -1,0 +1,16 @@
+services:
+  techshop-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: techshop-agent
+    ports:
+      - "7860:7860"
+    environment:
+      OLLAMA_HOST: "http://172.16.0.13:11434"
+      OLLAMA_MODEL: "qwen3:4b"
+      WHISPER_MODEL: "base"
+      TTS_MODEL: "tts_models/es/css10/vits"
+      GRADIO_HOST: "0.0.0.0"
+      GRADIO_PORT: "7860"
+    restart: unless-stopped
