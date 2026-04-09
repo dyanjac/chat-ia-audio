@@ -60,9 +60,10 @@ OLLAMA_TOOLS = [
                             "type": "object",
                             "properties": {
                                 "producto_id": {"type": "integer"},
+                                "producto_nombre": {"type": "string"},
                                 "cantidad": {"type": "integer"},
                             },
-                            "required": ["producto_id", "cantidad"],
+                            "required": ["cantidad"],
                         },
                     },
                 },

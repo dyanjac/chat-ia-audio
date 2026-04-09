@@ -17,6 +17,30 @@ class OllamaChatService:
         self._client = ollama.Client(host=settings.ollama_host)
         self._tool_executor = tool_executor or ToolExecutor()
 
+    def summarize_tool_result(self, tool_name: str, tool_result: dict[str, Any]) -> dict[str, Any]:
+        summary: dict[str, Any] = {"tool": tool_name}
+        if not isinstance(tool_result, dict):
+            summary["result_type"] = type(tool_result).__name__
+            return summary
+
+        for key in ("ok", "created", "error", "message", "count"):
+            if key in tool_result:
+                summary[key] = tool_result[key]
+
+        cliente = tool_result.get("cliente")
+        if isinstance(cliente, dict) and cliente.get("id") is not None:
+            summary["cliente_id"] = cliente.get("id")
+
+        pedido = tool_result.get("pedido")
+        if isinstance(pedido, dict):
+            if pedido.get("id") is not None:
+                summary["pedido_id"] = pedido.get("id")
+            cliente_info = pedido.get("cliente")
+            if isinstance(cliente_info, dict) and cliente_info.get("id") is not None:
+                summary["cliente_id"] = cliente_info.get("id")
+
+        return summary
+
     def normalize_arguments(self, raw_arguments: Any) -> dict[str, Any]:
         if raw_arguments is None:
             return {}
@@ -71,10 +95,18 @@ class OllamaChatService:
                     function_block = tool_call.get("function", {})
                     tool_name = function_block.get("name", "")
                     arguments = self.normalize_arguments(function_block.get("arguments"))
-                    logger.info("Ejecutando herramienta %s con args=%s", tool_name, arguments)
+                    logger.info(
+                        "Ejecutando herramienta %s con argumentos normalizados=%s",
+                        tool_name,
+                        arguments,
+                    )
 
                     try:
                         tool_result = self._tool_executor.execute(tool_name, arguments)
+                        logger.info(
+                            "Resultado resumido de herramienta=%s",
+                            self.summarize_tool_result(tool_name, tool_result),
+                        )
                     except Exception as exc:
                         logger.exception("Error ejecutando herramienta %s", tool_name)
                         tool_result = {"ok": False, "error": str(exc)}

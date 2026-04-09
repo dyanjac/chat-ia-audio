@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import time
 from decimal import Decimal
 from typing import Any
@@ -26,29 +27,64 @@ class SalesToolsService:
 
     def _validate_email(self, value: str) -> str:
         normalized = (value or "").strip().lower()
+        email_match = re.search(
+            r"([a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,})",
+            normalized,
+            flags=re.IGNORECASE,
+        )
+        if email_match:
+            normalized = email_match.group(1).lower()
         if "@" not in normalized or "." not in normalized.split("@")[-1]:
             raise ValueError("`email` debe tener un formato válido.")
         return normalized
 
     def _validate_phone(self, value: str) -> str:
-        normalized = (value or "").strip()
+        normalized = re.sub(r"[^\d+]", "", (value or "").strip())
         if len(normalized) < 6:
             raise ValueError("`telefono` debe tener al menos 6 caracteres.")
         return normalized
 
-    def _validate_items(self, items: list[dict[str, Any]]) -> list[dict[str, int]]:
+    def _coerce_positive_int(self, value: Any, field: str) -> int:
+        if isinstance(value, bool):
+            raise ValueError(f"`{field}` debe ser un entero positivo.")
+        if isinstance(value, int):
+            parsed = value
+        elif isinstance(value, float):
+            parsed = int(value)
+        else:
+            text = str(value or "").strip()
+            match = re.search(r"\d+", text)
+            parsed = int(match.group(0)) if match else 0
+        if parsed <= 0:
+            raise ValueError(f"`{field}` debe ser un entero positivo.")
+        return parsed
+
+    def _validate_items(self, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not isinstance(items, list) or not items:
             raise ValueError("`items` debe ser una lista no vacía.")
 
-        validated_items: list[dict[str, int]] = []
+        validated_items: list[dict[str, Any]] = []
         for item in items:
             if not isinstance(item, dict):
                 raise ValueError("Cada item debe ser un objeto.")
-            producto_id = int(item.get("producto_id", 0))
-            cantidad = int(item.get("cantidad", 0))
-            if producto_id <= 0 or cantidad <= 0:
-                raise ValueError("`producto_id` y `cantidad` deben ser enteros positivos.")
-            validated_items.append({"producto_id": producto_id, "cantidad": cantidad})
+            cantidad = self._coerce_positive_int(item.get("cantidad", 0), "cantidad")
+            producto_id_raw = item.get("producto_id")
+            producto_nombre = (item.get("producto_nombre") or item.get("nombre") or "").strip()
+
+            if producto_id_raw not in (None, "", 0, "0"):
+                producto_id = self._coerce_positive_int(producto_id_raw, "producto_id")
+                validated_items.append({"producto_id": producto_id, "cantidad": cantidad})
+                continue
+
+            if producto_nombre:
+                validated_items.append(
+                    {"producto_nombre": producto_nombre, "cantidad": cantidad}
+                )
+                continue
+
+            raise ValueError(
+                "Cada item debe incluir `producto_id` válido o `producto_nombre`."
+            )
         return validated_items
 
     def buscar_cliente(self, nombre: str) -> dict[str, Any]:
@@ -180,21 +216,64 @@ class SalesToolsService:
                         )
 
                     cliente = clients[0]
-                    product_ids = tuple(item["producto_id"] for item in items)
-                    placeholders = ", ".join(["%s"] * len(product_ids))
-                    cursor.execute(
-                        f"""
-                        SELECT id, nombre, precio, stock, activo
-                        FROM productos
-                        WHERE id IN ({placeholders})
-                        """,
-                        product_ids,
-                    )
-                    products = {row["id"]: row for row in cursor.fetchall()}
+                    products: dict[int, dict[str, Any]] = {}
+                    items_resolved: list[dict[str, Any]] = []
+
+                    ids_to_load = [
+                        item["producto_id"] for item in items if item.get("producto_id")
+                    ]
+                    if ids_to_load:
+                        placeholders = ", ".join(["%s"] * len(ids_to_load))
+                        cursor.execute(
+                            f"""
+                            SELECT id, nombre, precio, stock, activo
+                            FROM productos
+                            WHERE id IN ({placeholders})
+                            """,
+                            tuple(ids_to_load),
+                        )
+                        products.update({row["id"]: row for row in cursor.fetchall()})
+
+                    for item in items:
+                        if item.get("producto_id"):
+                            items_resolved.append(item)
+                            continue
+
+                        producto_nombre = self._validate_name(
+                            item.get("producto_nombre", ""),
+                            "producto_nombre",
+                        )
+                        cursor.execute(
+                            """
+                            SELECT id, nombre, precio, stock, activo
+                            FROM productos
+                            WHERE nombre LIKE %s AND activo = TRUE
+                            ORDER BY nombre ASC
+                            LIMIT 2
+                            """,
+                            (f"%{producto_nombre}%",),
+                        )
+                        matched_products = cursor.fetchall()
+                        if not matched_products:
+                            raise ValueError(
+                                f"No se encontró el producto `{producto_nombre}`."
+                            )
+                        if len(matched_products) > 1:
+                            raise ValueError(
+                                f"El producto `{producto_nombre}` es ambiguo."
+                            )
+                        matched_product = matched_products[0]
+                        products[matched_product["id"]] = matched_product
+                        items_resolved.append(
+                            {
+                                "producto_id": matched_product["id"],
+                                "cantidad": item["cantidad"],
+                            }
+                        )
 
                     detalles = []
                     total = Decimal("0.00")
-                    for item in items:
+                    for item in items_resolved:
                         product = products.get(item["producto_id"])
                         if not product or not product["activo"]:
                             raise ValueError(
