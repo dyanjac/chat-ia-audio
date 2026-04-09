@@ -23,6 +23,12 @@ def buscar_cliente(nombre: str) -> dict:
 
 
 @mcp.tool()
+def crear_cliente(nombre: str, email: str, telefono: str) -> dict:
+    """Crea un cliente nuevo si todavía no existe por email."""
+    return service.crear_cliente(nombre, email, telefono)
+
+
+@mcp.tool()
 def listar_productos() -> dict:
     """Lista productos activos con precio y stock."""
     return service.listar_productos()

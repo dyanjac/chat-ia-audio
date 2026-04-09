@@ -24,6 +24,18 @@ class SalesToolsService:
             raise ValueError(f"`{field}` debe tener al menos 2 caracteres.")
         return normalized
 
+    def _validate_email(self, value: str) -> str:
+        normalized = (value or "").strip().lower()
+        if "@" not in normalized or "." not in normalized.split("@")[-1]:
+            raise ValueError("`email` debe tener un formato válido.")
+        return normalized
+
+    def _validate_phone(self, value: str) -> str:
+        normalized = (value or "").strip()
+        if len(normalized) < 6:
+            raise ValueError("`telefono` debe tener al menos 6 caracteres.")
+        return normalized
+
     def _validate_items(self, items: list[dict[str, Any]]) -> list[dict[str, int]]:
         if not isinstance(items, list) or not items:
             raise ValueError("`items` debe ser una lista no vacía.")
@@ -54,6 +66,64 @@ class SalesToolsService:
                 rows = cursor.fetchall()
 
         return {"ok": True, "count": len(rows), "clientes": rows}
+
+    def crear_cliente(self, nombre: str, email: str, telefono: str) -> dict[str, Any]:
+        nombre = self._validate_name(nombre, "nombre")
+        email = self._validate_email(email)
+        telefono = self._validate_phone(telefono)
+
+        with DatabasePool.connection() as connection:
+            try:
+                with connection.cursor(dictionary=True) as cursor:
+                    cursor.execute(
+                        """
+                        SELECT id, nombre, email, telefono, fecha_creacion
+                        FROM clientes
+                        WHERE email = %s
+                        LIMIT 1
+                        """,
+                        (email,),
+                    )
+                    existing = cursor.fetchone()
+                    if existing:
+                        return {
+                            "ok": True,
+                            "created": False,
+                            "message": "El cliente ya existía.",
+                            "cliente": existing,
+                        }
+
+                    cursor.execute(
+                        """
+                        INSERT INTO clientes (nombre, email, telefono)
+                        VALUES (%s, %s, %s)
+                        """,
+                        (nombre, email, telefono),
+                    )
+                    cliente_id = cursor.lastrowid
+                    connection.commit()
+
+                    cursor.execute(
+                        """
+                        SELECT id, nombre, email, telefono, fecha_creacion
+                        FROM clientes
+                        WHERE id = %s
+                        LIMIT 1
+                        """,
+                        (cliente_id,),
+                    )
+                    created = cursor.fetchone()
+
+                return {
+                    "ok": True,
+                    "created": True,
+                    "message": "Cliente creado correctamente.",
+                    "cliente": created,
+                }
+            except Exception:
+                connection.rollback()
+                logger.exception("No se pudo crear el cliente")
+                raise
 
     def listar_productos(self) -> dict[str, Any]:
         now = time.time()
@@ -99,7 +169,7 @@ class SalesToolsService:
                         ORDER BY nombre ASC
                         LIMIT 2
                         """,
-                        (cliente_nombre,),
+                        (f"%{cliente_nombre}%",),
                     )
                     clients = cursor.fetchall()
                     if not clients:

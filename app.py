@@ -68,6 +68,22 @@ OLLAMA_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "crear_cliente",
+            "description": "Crea un cliente nuevo cuando no exista en la base de datos.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "nombre": {"type": "string"},
+                    "email": {"type": "string"},
+                    "telefono": {"type": "string"},
+                },
+                "required": ["nombre", "email", "telefono"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "listar_productos",
             "description": "Lista productos activos con precio y stock disponible.",
             "parameters": {"type": "object", "properties": {}},
@@ -204,6 +220,9 @@ def refresh_model_choices(current_value: Optional[str]):
 def execute_tool(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     handlers = {
         "buscar_cliente": lambda args: _sales_tools.buscar_cliente(args["nombre"]),
+        "crear_cliente": lambda args: _sales_tools.crear_cliente(
+            args["nombre"], args["email"], args["telefono"]
+        ),
         "listar_productos": lambda args: _sales_tools.listar_productos(),
         "crear_pedido": lambda args: _sales_tools.crear_pedido(
             args["cliente_nombre"], args["items"]
