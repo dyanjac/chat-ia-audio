@@ -9,6 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
     ffmpeg \
     espeak-ng \
     libsndfile1 \
@@ -19,8 +20,9 @@ RUN python -m pip install --upgrade pip && \
     python -m pip install -r requirements.txt
 
 COPY app.py .
+COPY sales_agent ./sales_agent
 COPY mcp_server ./mcp_server
 
 EXPOSE 7860
 
-CMD ["python", "app.py"]
+CMD ["uvicorn", "sales_agent.web:app", "--host", "0.0.0.0", "--port", "7860"]

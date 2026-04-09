@@ -1,7 +1,9 @@
 import logging
 
+import uvicorn
+
 from sales_agent.config import settings
-from sales_agent.ui import build_interface
+from sales_agent.web import app
 
 
 logging.basicConfig(
@@ -11,5 +13,4 @@ logging.basicConfig(
 
 
 if __name__ == "__main__":
-    app = build_interface()
-    app.launch(server_name=settings.gradio_host, server_port=settings.gradio_port)
+    uvicorn.run(app, host=settings.gradio_host, port=settings.gradio_port)
