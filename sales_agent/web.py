@@ -1,11 +1,13 @@
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from gradio import mount_gradio_app
 from starlette.staticfiles import StaticFiles
 
 from sales_agent.api import public_router, router as api_router
+from sales_agent.config import settings
 from sales_agent.ui import build_interface
 
 
@@ -14,6 +16,14 @@ def create_app() -> FastAPI:
     static_dir = base_dir / "static"
 
     app = FastAPI(title="TechShop Service")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=list(settings.cors_allowed_origins),
+        allow_credentials=settings.cors_allow_credentials,
+        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_headers=["*"],
+        expose_headers=["Content-Type", "Content-Length", "Content-Disposition"],
+    )
     app.include_router(api_router)
     app.include_router(public_router)
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
