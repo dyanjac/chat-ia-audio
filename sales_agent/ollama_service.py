@@ -39,11 +39,16 @@ class OllamaChatService:
             logger.warning("No se pudo obtener la lista de modelos de Ollama.", exc_info=True)
             return []
 
-    def chat(self, user_message: str, model_name: str) -> str:
-        messages: list[dict[str, Any]] = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_message},
-        ]
+    def chat(
+        self,
+        user_message: str,
+        model_name: str,
+        prior_messages: Optional[list[dict[str, str]]] = None,
+    ) -> str:
+        messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
+        if prior_messages:
+            messages.extend(prior_messages)
+        messages.append({"role": "user", "content": user_message})
 
         try:
             for _ in range(settings.max_tool_rounds):

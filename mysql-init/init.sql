@@ -42,6 +42,20 @@ CREATE TABLE IF NOT EXISTS pedido_detalle (
         FOREIGN KEY (producto_id) REFERENCES productos(id)
 );
 
+CREATE TABLE IF NOT EXISTS conversaciones (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    cliente_id INT NULL,
+    session_id VARCHAR(255) NOT NULL,
+    rol VARCHAR(20) NOT NULL,
+    mensaje TEXT,
+    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_conversaciones_cliente_id (cliente_id),
+    INDEX idx_conversaciones_session_id (session_id),
+    INDEX idx_conversaciones_fecha (fecha),
+    CONSTRAINT fk_conversaciones_cliente
+        FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+);
+
 INSERT INTO clientes (nombre, email, telefono)
 VALUES
     ('Ana Lopez', 'ana@example.com', '+51911111111'),

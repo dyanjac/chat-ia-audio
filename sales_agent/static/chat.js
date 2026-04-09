@@ -14,6 +14,40 @@ let recordedChunks = [];
 let recordingInterval = null;
 let recordingStartedAt = null;
 let isRecording = false;
+let currentSessionId = getOrCreateSessionId();
+let currentClienteId = getStoredClienteId();
+
+function getOrCreateSessionId() {
+  const stored = window.localStorage.getItem("techshop_chat_session_id");
+  if (stored && stored.trim().length >= 4) {
+    return stored.trim();
+  }
+  const generated = (window.crypto && window.crypto.randomUUID)
+    ? window.crypto.randomUUID()
+    : `session-${Date.now()}`;
+  window.localStorage.setItem("techshop_chat_session_id", generated);
+  return generated;
+}
+
+function getStoredClienteId() {
+  const stored = window.localStorage.getItem("techshop_chat_cliente_id");
+  if (!stored) {
+    return null;
+  }
+  const parsed = Number.parseInt(stored, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function persistConversationState(data) {
+  if (data.session_id) {
+    currentSessionId = data.session_id;
+    window.localStorage.setItem("techshop_chat_session_id", currentSessionId);
+  }
+  if (data.cliente_id) {
+    currentClienteId = data.cliente_id;
+    window.localStorage.setItem("techshop_chat_cliente_id", String(currentClienteId));
+  }
+}
 
 function setStatus(message, isError = false) {
   statusMessageEl.textContent = message;
@@ -127,7 +161,12 @@ async function sendTextMessage() {
     const response = await fetch("/api/chat/text", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, model }),
+      body: JSON.stringify({
+        message,
+        model,
+        session_id: currentSessionId,
+        cliente_id: currentClienteId,
+      }),
     });
 
     const data = await response.json();
@@ -137,6 +176,7 @@ async function sendTextMessage() {
       throw new Error(data.detail || "No se pudo procesar el mensaje.");
     }
 
+    persistConversationState(data);
     appendMessage(
       "assistant",
       data.assistant_message.content,
@@ -229,6 +269,10 @@ async function sendRecordedAudio() {
     const formData = new FormData();
     formData.append("file", blob, "audio.webm");
     formData.append("model", model);
+    formData.append("session_id", currentSessionId);
+    if (currentClienteId) {
+      formData.append("cliente_id", String(currentClienteId));
+    }
 
     const response = await fetch("/api/chat/audio", {
       method: "POST",
@@ -242,6 +286,7 @@ async function sendRecordedAudio() {
       throw new Error(data.detail || "No se pudo procesar el audio.");
     }
 
+    persistConversationState(data);
     appendMessage(
       "user",
       data.transcription || data.user_message.content,

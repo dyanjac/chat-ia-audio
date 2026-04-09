@@ -11,11 +11,14 @@ from sales_agent.ollama_service import ollama_service
 
 
 router = APIRouter(prefix="/api", tags=["api"])
+public_router = APIRouter(tags=["chat"])
 
 
 class TextChatRequest(BaseModel):
     message: str = Field(..., min_length=1)
     model: Optional[str] = None
+    session_id: Optional[str] = None
+    cliente_id: Optional[int] = None
 
 
 @router.get("/models")
@@ -29,7 +32,12 @@ def get_models() -> dict:
 def post_chat_text(payload: TextChatRequest) -> dict:
     try:
         model_name = (payload.model or settings.ollama_model).strip()
-        return chat_service.process_text_message(payload.message, model_name)
+        return chat_service.process_text_message(
+            payload.message,
+            model_name,
+            session_id=payload.session_id,
+            cliente_id=payload.cliente_id,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -38,10 +46,17 @@ def post_chat_text(payload: TextChatRequest) -> dict:
         raise HTTPException(status_code=500, detail=f"Error inesperado: {exc}") from exc
 
 
+@public_router.post("/chat")
+def post_chat(payload: TextChatRequest) -> dict:
+    return post_chat_text(payload)
+
+
 @router.post("/chat/audio")
 async def post_chat_audio(
     file: UploadFile = File(...),
     model: Optional[str] = Form(default=None),
+    session_id: Optional[str] = Form(default=None),
+    cliente_id: Optional[int] = Form(default=None),
 ) -> dict:
     try:
         file_bytes = await file.read()
@@ -49,7 +64,11 @@ async def post_chat_audio(
             raise ValueError("El archivo de audio está vacío.")
         model_name = (model or settings.ollama_model).strip()
         return chat_service.process_audio_message(
-            file_bytes, file.filename or "audio.webm", model_name
+            file_bytes,
+            file.filename or "audio.webm",
+            model_name,
+            session_id=session_id,
+            cliente_id=cliente_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

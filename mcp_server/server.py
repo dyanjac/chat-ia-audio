@@ -48,13 +48,8 @@ def obtener_pedidos_cliente(nombre: str) -> dict:
 
 def main() -> None:
     transport = os.getenv("MCP_TRANSPORT", "streamable-http")
-    host = os.getenv("MCP_HOST", "0.0.0.0")
-    port = int(os.getenv("MCP_PORT", "8001"))
-    logger.info("Iniciando MCP server en %s:%s con transporte %s", host, port, transport)
-    if transport == "streamable-http":
-        mcp.run(transport=transport, host=host, port=port)
-    else:
-        mcp.run(transport=transport)
+    logger.info("Iniciando MCP server con transporte %s", transport)
+    mcp.run(transport=transport)
 
 
 if __name__ == "__main__":
