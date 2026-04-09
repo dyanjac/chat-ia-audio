@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TechShop Chat Lab</title>
+  <link rel="stylesheet" href="/static/chat.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1 class="sidebar-title">TechShop Chat Lab</h1>
+        <p class="sidebar-subtitle">Laboratorio visual para pruebas del flujo conversacional.</p>
+      </div>
+      <div class="session-card">
+        <p class="session-name">Sesion actual</p>
+        <p class="session-preview">
+          Conversacion local de laboratorio usando las APIs FastAPI del servicio.
+        </p>
+      </div>
+    </aside>
+
+    <main class="chat-panel">
+      <div class="chat-header">
+        <h2 class="chat-title">Asistente de ventas</h2>
+        <p class="chat-subtitle">Ruta de pruebas: /chat</p>
+      </div>
+
+      <section id="messages" class="messages">
+        <div class="date-divider" id="dateDivider"></div>
+      </section>
+
+      <section class="composer">
+        <div class="composer-top">
+          <select id="modelSelect"></select>
+          <button class="ghost-btn" id="refreshModelsBtn" type="button">Actualizar modelos</button>
+        </div>
+
+        <div class="composer-bottom">
+          <textarea id="messageInput" placeholder="Escribe un mensaje para el agente..."></textarea>
+          <button class="record-btn" id="recordBtn" type="button">Mantener para grabar</button>
+          <button class="send-btn" id="sendBtn" type="button">Enviar</button>
+        </div>
+
+        <div class="status-row">
+          <span class="status-message" id="statusMessage">Listo.</span>
+          <span id="recordingTime"></span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/chat.js"></script>
+</body>
+</html>

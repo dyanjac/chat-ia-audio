@@ -2,6 +2,7 @@ import atexit
 import logging
 import os
 import tempfile
+import uuid
 from typing import Optional
 
 import whisper
@@ -18,11 +19,17 @@ class AudioService:
         self._whisper_model = None
         self._tts_model = None
         self._generated_audio_files: set[str] = set()
+        self._audio_registry: dict[str, str] = {}
         atexit.register(self.cleanup_generated_files)
 
     def cleanup_file(self, path: Optional[str]) -> None:
         if not path:
             return
+        audio_ids = [
+            audio_id for audio_id, file_path in self._audio_registry.items() if file_path == path
+        ]
+        for audio_id in audio_ids:
+            self._audio_registry.pop(audio_id, None)
         try:
             if os.path.exists(path):
                 os.remove(path)
@@ -69,6 +76,19 @@ class AudioService:
 
         self._generated_audio_files.add(tmp_path)
         return tmp_path
+
+    def register_audio_file(self, path: str) -> str:
+        if not path or not os.path.exists(path):
+            raise FileNotFoundError("No se encontró el archivo de audio a registrar.")
+        audio_id = uuid.uuid4().hex
+        self._audio_registry[audio_id] = path
+        return audio_id
+
+    def get_audio_file(self, audio_id: str) -> str:
+        path = self._audio_registry.get(audio_id)
+        if not path or not os.path.exists(path):
+            raise FileNotFoundError("No se encontró el audio solicitado.")
+        return path
 
 
 audio_service = AudioService()
