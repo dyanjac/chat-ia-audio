@@ -177,6 +177,30 @@ def normalize_arguments(raw_arguments: Any) -> dict[str, Any]:
     raise ValueError("Formato de argumentos de herramienta no soportado.")
 
 
+def list_ollama_models() -> list[str]:
+    try:
+        response = _ollama_client.list()
+        models = response.get("models", [])
+        names = [model.get("model", "").strip() for model in models if model.get("model")]
+        return sorted(set(name for name in names if name))
+    except Exception:
+        logger.warning("No se pudo obtener la lista de modelos de Ollama.", exc_info=True)
+        return []
+
+
+def refresh_model_choices(current_value: Optional[str]):
+    models = list_ollama_models()
+    selected = (current_value or OLLAMA_MODEL).strip() or OLLAMA_MODEL
+    if selected not in models:
+        models = [selected, *models] if selected else models
+    info_text = (
+        "Modelos cargados desde Ollama."
+        if models
+        else "No se pudo cargar la lista desde Ollama. Puedes escribir el modelo manualmente."
+    )
+    return gr.Dropdown(choices=models, value=selected, allow_custom_value=True), info_text
+
+
 def execute_tool(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     handlers = {
         "buscar_cliente": lambda args: _sales_tools.buscar_cliente(args["nombre"]),
@@ -193,7 +217,7 @@ def execute_tool(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     return handlers[tool_name](arguments)
 
 
-def ask_ollama(user_message: str) -> str:
+def ask_ollama(user_message: str, model_name: str) -> str:
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_message},
@@ -202,7 +226,7 @@ def ask_ollama(user_message: str) -> str:
     try:
         for _ in range(MAX_TOOL_ROUNDS):
             response = _ollama_client.chat(
-                model=OLLAMA_MODEL,
+                model=model_name,
                 messages=messages,
                 tools=OLLAMA_TOOLS,
             )
@@ -241,7 +265,7 @@ def ask_ollama(user_message: str) -> str:
         raise RuntimeError(
             "No fue posible conectar con Ollama o completar la conversación con herramientas. "
             f"Verifica que el servicio esté accesible en `{OLLAMA_HOST}` y que el modelo "
-            f"`{OLLAMA_MODEL}` exista."
+            f"`{model_name}` exista."
         ) from exc
 
 
@@ -264,6 +288,7 @@ def synthesize_speech(text: str) -> str:
 def process_request(
     text_input: str,
     audio_input: Optional[str],
+    selected_model: str,
     previous_audio_path: Optional[str],
 ):
     cleanup_file(previous_audio_path)
@@ -277,7 +302,11 @@ def process_request(
         if not user_query:
             raise ValueError("Escribe una consulta o graba un audio antes de enviar.")
 
-        reply_text = ask_ollama(user_query)
+        model_name = (selected_model or OLLAMA_MODEL).strip()
+        if not model_name:
+            raise ValueError("Selecciona o escribe un modelo de Ollama.")
+
+        reply_text = ask_ollama(user_query, model_name)
         reply_audio_path = synthesize_speech(reply_text)
 
         return reply_text, reply_audio_path, reply_audio_path
@@ -294,6 +323,11 @@ def process_request(
 
 def build_interface() -> gr.Blocks:
     with gr.Blocks(title="TechShop Sales Agent") as demo:
+        available_models = list_ollama_models()
+        default_model = OLLAMA_MODEL if OLLAMA_MODEL else (available_models[0] if available_models else "")
+        if default_model and default_model not in available_models:
+            available_models = [default_model, *available_models]
+
         gr.Markdown(
             f"""
             # TechShop Sales Agent
@@ -303,11 +337,26 @@ def build_interface() -> gr.Blocks:
 
             Configuración actual:
             - OLLAMA_HOST: `{OLLAMA_HOST}`
-            - OLLAMA_MODEL: `{OLLAMA_MODEL}`
+            - Modelo por defecto: `{OLLAMA_MODEL}`
             """
         )
 
         previous_audio_state = gr.State(value=None)
+        model_status = gr.Markdown(
+            "Modelos cargados desde Ollama."
+            if available_models
+            else "No se pudo cargar la lista desde Ollama. Puedes escribir el modelo manualmente."
+        )
+
+        with gr.Row():
+            model_selector = gr.Dropdown(
+                choices=available_models,
+                value=default_model,
+                label="Modelo Ollama",
+                allow_custom_value=True,
+                interactive=True,
+            )
+            refresh_models_button = gr.Button("Actualizar modelos")
 
         with gr.Row():
             text_input = gr.Textbox(
@@ -337,8 +386,13 @@ def build_interface() -> gr.Blocks:
 
         submit_button.click(
             fn=process_request,
-            inputs=[text_input, audio_input, previous_audio_state],
+            inputs=[text_input, audio_input, model_selector, previous_audio_state],
             outputs=[output_text, output_audio, previous_audio_state],
+        )
+        refresh_models_button.click(
+            fn=refresh_model_choices,
+            inputs=[model_selector],
+            outputs=[model_selector, model_status],
         )
 
     return demo
