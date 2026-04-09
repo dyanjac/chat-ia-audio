@@ -19,3 +19,4 @@ temp
 *.wav
 *.mp3
 *.log
+.chat-agente/
